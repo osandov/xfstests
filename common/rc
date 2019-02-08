@@ -3883,6 +3883,22 @@ _require_fibmap()
 	rm -f $file
 }
 
+_require_btrfs_send_stream_version()
+{
+	if [[ $1 -eq 1 ]]; then
+		return
+	fi
+	if ! $BTRFS_UTIL_PROG send --help | grep -q stream-version || \
+		$BTRFS_UTIL_PROG send --stream-version $1 |& \
+		grep -q "unsupported stream version"; then
+		_notrun "btrfs-progs doesn't support send stream version $1"
+	fi
+	if [[ ! -e /sys/fs/btrfs/features/send_stream_version ]] || \
+		(($(cat /sys/fs/btrfs/features/send_stream_version) < $1)); then
+		_notrun "kernel doesn't support send stream version $1"
+	fi
+}
+
 init_rc
 
 ################################################################################

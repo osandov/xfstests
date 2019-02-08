@@ -1,0 +1,25 @@
+QA output created by 184
+wrote 65536/65536 bytes at offset 0
+XXX Bytes, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
+fcd6bcb56c1689fcef28b57c22475bad  SCRATCH_MNT/snap/prealloc
+0: [0..127]: unwritten
+fcd6bcb56c1689fcef28b57c22475bad  SCRATCH_MNT/snap/prealloc_with_holes
+0: [0..31]: unwritten
+1: [32..63]: hole
+2: [64..95]: unwritten
+3: [96..127]: hole
+fcd6bcb56c1689fcef28b57c22475bad  SCRATCH_MNT/snap/prealloc_beyond_eof
+0: [0..127]: hole
+1: [128..159]: unwritten
+2: [160..255]: hole
+3: [256..287]: unwritten
+fcd6bcb56c1689fcef28b57c22475bad  SCRATCH_MNT/snap/prealloc_straddles_eof
+0: [0..95]: hole
+1: [96..159]: unwritten
+0519b05a43ef6fd071196d0d5ff07779  SCRATCH_MNT/snap/data_and_hole_and_prealloc
+0: [0..63]: data
+1: [64..95]: hole
+2: [96..127]: data
+3: [128..159]: unwritten
+4: [160..191]: hole
+5: [192..223]: unwritten
