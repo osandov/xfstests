@@ -1,0 +1,5 @@
+QA output created by 183
+wrote 32768/32768 bytes at offset 0
+XXX Bytes, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
+4cf9f84d5c8b67e140fbc7884d271df9  SCRATCH_MNT/snap2/foo
+4cf9f84d5c8b67e140fbc7884d271df9  SCRATCH_MNT/snap2/foo

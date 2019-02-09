@@ -1,0 +1,66 @@
+#! /bin/bash
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2019 Omar Sandoval.  All Rights Reserved.
+#
+# FS QA Test 183
+#
+# Test that an incremental send operation produces correct results if a file
+# that has a prealloc (unwritten) extent beyond its EOF gets a hole punched
+# that straddles EOF. This is similar to btrfs/169 but covers a case missed in
+# that test.
+#
+seq=`basename $0`
+seqres=$RESULT_DIR/$seq
+echo "QA output created by $seq"
+
+here=`pwd`
+tmp=/tmp/$$
+status=1	# failure is the default!
+trap "_cleanup; exit \$status" 0 1 2 3 15
+
+_cleanup()
+{
+	cd /
+	rm -f $tmp.*
+}
+
+# get standard environment, filters and checks
+. ./common/rc
+. ./common/filter
+
+# remove previous $seqres.full before test
+rm -f $seqres.full
+
+_supported_fs btrfs
+_supported_os Linux
+_require_scratch
+_require_btrfs_fs_feature no_holes
+_require_btrfs_mkfs_feature no-holes
+_require_xfs_io_command fpunch
+_require_xfs_io_command falloc -k
+
+_scratch_mkfs >> $seqres.full 2>&1
+_scratch_mount
+
+_run_btrfs_util_prog subvolume create "$SCRATCH_MNT/subvol"
+$XFS_IO_PROG -f -c "pwrite 0 $((32 * 1024))" "$SCRATCH_MNT/subvol/foo" \
+	| _filter_xfs_io
+_run_btrfs_util_prog subvolume snapshot -r "$SCRATCH_MNT/subvol" \
+	"$SCRATCH_MNT/snap1"
+
+$XFS_IO_PROG -c "fpunch $((20 * 1024)) $((12 * 1024))" \
+	-c "falloc -k $((40 * 1024)) $((8 * 1024))" "$SCRATCH_MNT/subvol/foo"
+_run_btrfs_util_prog subvolume snapshot -r "$SCRATCH_MNT/subvol" \
+	"$SCRATCH_MNT/snap2"
+
+_run_btrfs_util_prog send -f "$SCRATCH_MNT/send" -p "$SCRATCH_MNT/snap1" \
+	"$SCRATCH_MNT/snap2"
+
+md5sum "$SCRATCH_MNT/snap2/foo" | _filter_scratch
+_run_btrfs_util_prog subvolume delete "$SCRATCH_MNT/snap2"
+
+_run_btrfs_util_prog receive -f "$SCRATCH_MNT/send" "$SCRATCH_MNT"
+md5sum "$SCRATCH_MNT/snap2/foo" | _filter_scratch
+
+status=0
+exit
