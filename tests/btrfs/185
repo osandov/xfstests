@@ -1,0 +1,258 @@
+#! /bin/bash
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2019 Omar Sandoval.  All Rights Reserved.
+#
+# FS QA Test 185
+#
+# Do incremental sends with --stream-version 2 of various combinations of
+# written, unwritten, and hole extents. Test for "Btrfs: send, use fallocate
+# for preallocated extents and holes".
+#
+seq=`basename $0`
+seqres=$RESULT_DIR/$seq
+echo "QA output created by $seq"
+
+here=`pwd`
+tmp=/tmp/$$
+status=1	# failure is the default!
+trap "_cleanup; exit \$status" 0 1 2 3 15
+
+_cleanup()
+{
+	cd /
+	rm -f $tmp.*
+}
+
+# get standard environment, filters and checks
+. ./common/rc
+. ./common/filter
+. ./common/punch
+
+# remove previous $seqres.full before test
+rm -f $seqres.full
+
+_supported_fs btrfs
+_supported_os Linux
+_require_scratch
+_require_xfs_io_command fiemap
+_require_xfs_io_command fpunch
+_require_xfs_io_command fzero
+_require_btrfs_send_stream_version 2
+
+_scratch_mkfs >> $seqres.full 2>&1
+_scratch_mount
+
+_run_btrfs_util_prog subvolume create "$SCRATCH_MNT/subvol"
+
+# File with a written extent, unwritten extent, and hole within i_size, and a
+# couple of unwritten extents beyond i_size.
+$XFS_IO_PROG -f -c "truncate $((384 * 512))" \
+	-c "pwrite 0 $((128 * 512))" \
+	-c "falloc -k $((128 * 512)) $((128 * 512))" \
+	-c "falloc -k $((416 * 512)) $((32 * 512))" \
+	-c "falloc -k $((480 * 512)) $((64 * 512))" \
+	"$SCRATCH_MNT/subvol/same_size" | _filter_xfs_io
+
+# Two files with an unwritten extent straddling i_size.
+$XFS_IO_PROG -f -c "truncate $((256 * 512))" \
+	-c "falloc -k $((192 * 512)) $((128 * 512))" \
+	"$SCRATCH_MNT/subvol/same_size_straddling1"
+$XFS_IO_PROG -f -c "truncate $((256 * 512))" \
+	-c "falloc -k $((192 * 512)) $((128 * 512))" \
+	"$SCRATCH_MNT/subvol/same_size_straddling2"
+
+# Three files with a single written extent.
+$XFS_IO_PROG -f -c "pwrite 0 $((256 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_written" | _filter_xfs_io
+$XFS_IO_PROG -f -c "pwrite 0 $((256 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_written_to_unwritten" | _filter_xfs_io
+$XFS_IO_PROG -f -c "pwrite 0 $((256 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_written_to_hole" | _filter_xfs_io
+
+# Three files with a single unwritten extent which straddles i_size.
+$XFS_IO_PROG -f -c "truncate $((256 * 512))" \
+	-c "falloc -k 0 $((288 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_unwritten"
+$XFS_IO_PROG -f -c "truncate $((256 * 512))" \
+	-c "falloc -k 0 $((288 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_unwritten_to_written"
+$XFS_IO_PROG -f -c "truncate $((256 * 512))" \
+	-c "falloc -k 0 $((288 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_unwritten_to_hole"
+
+# Three files with no extents.
+$XFS_IO_PROG -f -c "truncate $((256 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_hole"
+$XFS_IO_PROG -f -c "truncate $((256 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_hole_to_written"
+$XFS_IO_PROG -f -c "truncate $((256 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_hole_to_unwritten"
+
+# Two files with a written extent and an unwritten extent beyond EOF.
+$XFS_IO_PROG -f -c "pwrite 0 $((128 * 512))" \
+	-c "falloc -k $((128 * 512)) $((128 * 512))" \
+	"$SCRATCH_MNT/subvol/larger_unwritten" | _filter_xfs_io
+$XFS_IO_PROG -f -c "pwrite 0 $((128 * 512))" \
+	-c "falloc -k $((128 * 512)) $((128 * 512))" \
+	"$SCRATCH_MNT/subvol/larger_written" | _filter_xfs_io
+
+# File with a written extent.
+$XFS_IO_PROG -f -c "pwrite 0 $((128 * 512))" \
+	"$SCRATCH_MNT/subvol/larger_hole" | _filter_xfs_io
+
+# File with a single unwritten extent straddling i_size.
+$XFS_IO_PROG -f -c "truncate $((128 * 512))" \
+	-c "falloc -k $((0 * 512)) $((256 * 512))" \
+	"$SCRATCH_MNT/subvol/larger_unwritten_straddling"
+
+# File with no extents.
+$XFS_IO_PROG -f -c "truncate $((128 * 512))" \
+	"$SCRATCH_MNT/subvol/larger_hole_to_unwritten"
+
+# File with a single unwritten extent beyond i_size.
+$XFS_IO_PROG -f -c "truncate $((128 * 512))" \
+	-c "falloc -k $((128 * 512)) $((128 * 512))" \
+	"$SCRATCH_MNT/subvol/larger_hole_straddling"
+
+_run_btrfs_util_prog subvolume snapshot -r "$SCRATCH_MNT/subvol" "$SCRATCH_MNT/snap1"
+
+# Convert part of the written extent to unwritten.
+$XFS_IO_PROG -c "fzero -k $((32 * 512)) $((32 * 512))" \
+	"$SCRATCH_MNT/subvol/same_size"
+# Convert part of the written extent and part of the unwritten extent into a
+# hole.
+$XFS_IO_PROG -c "fpunch $((96 * 512)) $((64 * 512))" \
+	"$SCRATCH_MNT/subvol/same_size"
+# Convert part of the unwritten extent and hole to written.
+$XFS_IO_PROG -c "pwrite $((224 * 512)) $((64 * 512))" \
+	"$SCRATCH_MNT/subvol/same_size" | _filter_xfs_io
+# Convert part of the hole and area beyond i_size to unwritten.
+$XFS_IO_PROG -c "falloc -k $((352 * 512)) $((64 * 512))" \
+	"$SCRATCH_MNT/subvol/same_size"
+# Remove the first unwritten extent beyond i_size and part of the second one.
+$XFS_IO_PROG -c "fpunch $((416 * 512)) $((96 * 512))" \
+	"$SCRATCH_MNT/subvol/same_size"
+
+# Remove part of the unwritten extent before i_size.
+$XFS_IO_PROG -c "fpunch $((224 * 512)) $((32 * 512))" \
+	"$SCRATCH_MNT/subvol/same_size_straddling1"
+
+# Remove the unwritten extent except for a part beyond i_size.
+$XFS_IO_PROG -c "fpunch $((192 * 512)) $((96 * 512))" \
+	"$SCRATCH_MNT/subvol/same_size_straddling2"
+
+# Shrink the file and add an unwritten extent beyond EOF.
+$XFS_IO_PROG -c "truncate $((128 * 512))" \
+	-c "falloc -k $((256 * 512)) $((32 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_written"
+
+# Shrink the file and make it unwritten.
+$XFS_IO_PROG -c "truncate $((128 * 512))" \
+	-c "falloc -k 0 $((256 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_written_to_unwritten"
+
+# Shrink the file and leave it with no extents.
+$XFS_IO_PROG -t -c "truncate $((128 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_written_to_hole"
+
+# Shrink the file but leave the rest of the unwritten extent intact.
+$XFS_IO_PROG -c "truncate $((128 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_unwritten"
+
+# Make the unwritten extent written, shrink the file, then restore the rest of
+# the unwritten extent.
+$XFS_IO_PROG -c "pwrite 0 $((256 * 512))" \
+	-c "truncate $((128 * 512))" \
+	-c "falloc -k $((128 * 512)) $((128 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_unwritten_to_written" | _filter_xfs_io
+
+# Shrink the file and turn the end of the remaining unwritten extent to a hole.
+$XFS_IO_PROG -c "truncate $((128 * 512))" \
+	-c "fpunch $((64 * 512)) $((64 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_unwritten_to_hole"
+
+# Shrink the hole and add an unwritten extent.
+$XFS_IO_PROG -c "truncate $((128 * 512))" \
+	-c "falloc -k $((128 * 512)) $((32 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_hole"
+
+# Write into the middle of the hole and shrink the file.
+$XFS_IO_PROG -c "pwrite $((32 * 512)) $((64 * 512))" \
+	-c "truncate $((128 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_hole_to_written" | _filter_xfs_io
+
+# Shrink the file and add an unwritten extent which straddles i_size.
+$XFS_IO_PROG -c "truncate $((128 * 512))" \
+	-c "falloc -k $((96 * 512)) $((64 * 512))" \
+	"$SCRATCH_MNT/subvol/smaller_hole_to_unwritten"
+
+# Add unwritten space and extent i_size to it.
+$XFS_IO_PROG -c "falloc $((256 * 512)) $((128 * 512))" \
+	"$SCRATCH_MNT/subvol/larger_unwritten"
+
+# Convert some of the unwritten extent to written.
+$XFS_IO_PROG -c "pwrite $((128 * 512)) $((64 * 512))" \
+	"$SCRATCH_MNT/subvol/larger_written" | _filter_xfs_io
+
+# Extend the file, adding a hole.
+$XFS_IO_PROG -c "truncate $((160 * 512))" \
+	"$SCRATCH_MNT/subvol/larger_hole"
+
+# Extend the file within the unwritten extent without changing any extents.
+$XFS_IO_PROG -c "truncate $((192 * 512))" \
+	"$SCRATCH_MNT/subvol/larger_unwritten_straddling"
+
+# Grow the file and add an extent which straddles i_size.
+$XFS_IO_PROG -c "truncate $((192 * 512))" \
+	-c "falloc -k $((160 * 512)) $((128 * 512))" \
+	"$SCRATCH_MNT/subvol/larger_hole_to_unwritten"
+
+# Grow the file while preserving the unwritten extent beyond i_size, then punch
+# a hole straddling i_size.
+$XFS_IO_PROG -c "falloc $((128 * 512)) $((32 * 512))" \
+	-c "fpunch $((96 * 512)) $((96 * 512))" \
+	"$SCRATCH_MNT/subvol/larger_hole_straddling"
+
+_run_btrfs_util_prog subvolume snapshot -r "$SCRATCH_MNT/subvol" "$SCRATCH_MNT/snap2"
+
+_run_btrfs_util_prog send --stream-version 2 -f "$tmp.send1" "$SCRATCH_MNT/snap1"
+_run_btrfs_util_prog send --stream-version 2 -f "$tmp.send2" \
+	-p "$SCRATCH_MNT/snap1" "$SCRATCH_MNT/snap2"
+
+_scratch_unmount
+_check_scratch_fs
+
+_scratch_mkfs >> $seqres.full 2>&1
+_scratch_mount
+
+_run_btrfs_util_prog receive -f "$tmp.send1" "$SCRATCH_MNT"
+_run_btrfs_util_prog receive -f "$tmp.send2" "$SCRATCH_MNT"
+sync
+
+dump()
+{
+	md5sum "$SCRATCH_MNT/snap2/$1" | _filter_scratch
+	$XFS_IO_PROG -r -c "fiemap -v" "$SCRATCH_MNT/snap2/$1" | _filter_fiemap
+}
+
+dump same_size
+dump same_size_straddling1
+dump same_size_straddling2
+dump smaller_written
+dump smaller_written_to_unwritten
+dump smaller_written_to_hole
+dump smaller_unwritten
+dump smaller_unwritten_to_written
+dump smaller_unwritten_to_hole
+dump smaller_hole
+dump smaller_hole_to_written
+dump smaller_hole_to_unwritten
+dump larger_unwritten
+dump larger_written
+dump larger_hole
+dump larger_unwritten_straddling
+dump larger_hole_to_unwritten
+dump larger_hole_straddling
+
+status=0
+exit

@@ -1,0 +1,85 @@
+QA output created by 185
+wrote 65536/65536 bytes at offset 0
+XXX Bytes, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
+wrote 131072/131072 bytes at offset 0
+XXX Bytes, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
+wrote 131072/131072 bytes at offset 0
+XXX Bytes, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
+wrote 131072/131072 bytes at offset 0
+XXX Bytes, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
+wrote 65536/65536 bytes at offset 0
+XXX Bytes, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
+wrote 65536/65536 bytes at offset 0
+XXX Bytes, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
+wrote 65536/65536 bytes at offset 0
+XXX Bytes, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
+wrote 32768/32768 bytes at offset 114688
+XXX Bytes, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
+wrote 131072/131072 bytes at offset 0
+XXX Bytes, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
+wrote 32768/32768 bytes at offset 16384
+XXX Bytes, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
+wrote 32768/32768 bytes at offset 65536
+XXX Bytes, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
+55d195347f325fdd6618d7082a74aaea  SCRATCH_MNT/snap2/same_size
+0: [0..31]: data
+1: [32..63]: unwritten
+2: [64..95]: data
+3: [96..159]: hole
+4: [160..223]: unwritten
+5: [224..287]: data
+6: [288..351]: hole
+7: [352..415]: unwritten
+8: [416..511]: hole
+9: [512..543]: unwritten
+0dfbe8aa4c20b52e1b8bf3cb6cbdf193  SCRATCH_MNT/snap2/same_size_straddling1
+0: [0..191]: hole
+1: [192..223]: unwritten
+2: [224..255]: hole
+3: [256..319]: unwritten
+0dfbe8aa4c20b52e1b8bf3cb6cbdf193  SCRATCH_MNT/snap2/same_size_straddling2
+0: [0..287]: hole
+1: [288..319]: unwritten
+27c9068d1b51da575a53ad34c57ca5cc  SCRATCH_MNT/snap2/smaller_written
+0: [0..127]: data
+1: [128..255]: hole
+2: [256..287]: unwritten
+27c9068d1b51da575a53ad34c57ca5cc  SCRATCH_MNT/snap2/smaller_written_to_unwritten
+0: [0..127]: data
+1: [128..255]: unwritten
+fcd6bcb56c1689fcef28b57c22475bad  SCRATCH_MNT/snap2/smaller_written_to_hole
+fcd6bcb56c1689fcef28b57c22475bad  SCRATCH_MNT/snap2/smaller_unwritten
+0: [0..127]: unwritten
+27c9068d1b51da575a53ad34c57ca5cc  SCRATCH_MNT/snap2/smaller_unwritten_to_written
+0: [0..127]: data
+1: [128..255]: unwritten
+fcd6bcb56c1689fcef28b57c22475bad  SCRATCH_MNT/snap2/smaller_unwritten_to_hole
+0: [0..63]: unwritten
+1: [64..127]: hole
+fcd6bcb56c1689fcef28b57c22475bad  SCRATCH_MNT/snap2/smaller_hole
+0: [0..127]: hole
+1: [128..159]: unwritten
+a5e4b8a11bb9a89c473ee37177b0c3b3  SCRATCH_MNT/snap2/smaller_hole_to_written
+0: [0..31]: hole
+1: [32..95]: data
+2: [96..127]: hole
+fcd6bcb56c1689fcef28b57c22475bad  SCRATCH_MNT/snap2/smaller_hole_to_unwritten
+0: [0..95]: hole
+1: [96..159]: unwritten
+da95adcbefc28ba59b21cf335c516c6f  SCRATCH_MNT/snap2/larger_unwritten
+0: [0..127]: data
+1: [128..383]: unwritten
+6f1f8907250bdbf673e1e55212b56b82  SCRATCH_MNT/snap2/larger_written
+0: [0..191]: data
+1: [192..255]: unwritten
+614158ce20bd33651f8e688226b02250  SCRATCH_MNT/snap2/larger_hole
+0: [0..127]: data
+1: [128..159]: hole
+0a9156c4e3c48ef827980639c4d1e263  SCRATCH_MNT/snap2/larger_unwritten_straddling
+0: [0..255]: unwritten
+0a9156c4e3c48ef827980639c4d1e263  SCRATCH_MNT/snap2/larger_hole_to_unwritten
+0: [0..159]: hole
+1: [160..287]: unwritten
+030a4f48dc8db0956add25994004e5ca  SCRATCH_MNT/snap2/larger_hole_straddling
+0: [0..191]: hole
+1: [192..255]: unwritten
