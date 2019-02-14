@@ -1,0 +1,14 @@
+QA output created by 526
+Set btime
+stat.btime.tv_sec = 683153828
+stat.btime.tv_nsec = 0
+Set atime and mtime
+stat.btime.tv_sec = 683153828
+stat.btime.tv_nsec = 0
+Omit btime
+stat.btime.tv_sec = 683153828
+stat.btime.tv_nsec = 0
+Cycle mount
+stat.btime.tv_sec = 683153828
+stat.btime.tv_nsec = 0
+Set btime to now

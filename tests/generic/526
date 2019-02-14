@@ -1,0 +1,64 @@
+#! /bin/bash
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2019 Omar Sandoval.  All Rights Reserved.
+#
+# FS QA Test 526
+#
+# Test basic AT_UTIME_BTIME functionality.
+#
+seq=`basename $0`
+seqres=$RESULT_DIR/$seq
+echo "QA output created by $seq"
+
+here=`pwd`
+tmp=/tmp/$$
+status=1	# failure is the default!
+trap "_cleanup; exit \$status" 0 1 2 3 15
+
+_cleanup()
+{
+	cd /
+	rm -f $tmp.*
+	rm -f "$TEST_DIR/$$"
+}
+
+# get standard environment, filters and checks
+. ./common/rc
+. ./common/filter
+
+# remove previous $seqres.full before test
+rm -f $seqres.full
+_supported_fs generic
+_supported_os Linux
+_require_test
+_require_utime_btime
+
+SEC=683153828
+UTIME_NOW=$(((1 << 30) - 1))
+UTIME_OMIT=$(((1 << 30) - 2))
+
+touch "$TEST_DIR/$$"
+
+echo "Set btime"
+$XFS_IO_PROG -c "utimes 0 $UTIME_OMIT 0 $UTIME_OMIT $SEC 0" "$TEST_DIR/$$"
+$XFS_IO_PROG -c 'statx -r' "$TEST_DIR/$$" | grep btime
+
+echo "Set atime and mtime"
+$XFS_IO_PROG -c "utimes 0 $UTIME_NOW 0 $UTIME_NOW" "$TEST_DIR/$$"
+$XFS_IO_PROG -c 'statx -r' "$TEST_DIR/$$" | grep btime
+
+echo "Omit btime"
+$XFS_IO_PROG -c "utimes 0 $UTIME_NOW 0 $UTIME_NOW 0 $UTIME_OMIT" "$TEST_DIR/$$"
+$XFS_IO_PROG -c 'statx -r' "$TEST_DIR/$$" | grep btime
+
+echo "Cycle mount"
+_test_cycle_mount
+$XFS_IO_PROG -c 'statx -r' "$TEST_DIR/$$" | grep btime
+
+echo "Set btime to now"
+$XFS_IO_PROG -c "utimes 0 $UTIME_OMIT 0 $UTIME_OMIT 0 $UTIME_NOW" "$TEST_DIR/$$"
+# The timestamp changed, so this shouldn't output anything.
+$XFS_IO_PROG -c 'statx -r' "$TEST_DIR/$$" | grep -w "$SEC"
+
+status=0
+exit

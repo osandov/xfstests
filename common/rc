@@ -3843,6 +3843,20 @@ _require_btime()
 	rm -f $TEST_DIR/test_creation_time
 }
 
+_require_utime_btime()
+{
+	_require_btime
+	_require_xfs_io_command utimes
+	testio=`$XFS_IO_PROG -f -c "utimes 0 0 0 0 0 0" "$TEST_DIR/$$.xfs_io" 2>&1`
+	echo $testio | grep -q "expected 4 arguments" && \
+		_notrun "xfs_io utimes btime support is missing"
+	echo $testio | grep -q "Operation not supported" && \
+		_notrun "updating inode creation time not supported by this filesystem"
+	echo $testio | grep -q "Invalid" && \
+		_notrun "updating inode creation time not supported by this kernel"
+	rm -f $testfile > /dev/null 2>&1
+}
+
 _require_scratch_btime()
 {
 	_require_scratch
