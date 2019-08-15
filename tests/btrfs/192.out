@@ -1,0 +1,44 @@
+QA output created by 192
+none
+Files - and TEST_DIR/192.none are identical
+Files TMP.uncompressed and TEST_DIR/192.none are identical
+Files TMP.uncompressed2 and TEST_DIR/192.none are identical
+zlib
+Files - and TEST_DIR/192.zlib are identical
+Files TMP.uncompressed and TEST_DIR/192.zlib are identical
+Files TMP.uncompressed2 and TEST_DIR/192.zlib are identical
+Empty data
+Unaligned offset
+pwritev2: Invalid argument
+Large extent
+pwritev2: Invalid argument
+Compression doesn't shrink data
+Decompressed data is longer than expected
+Decompressed data is shorter than expected
+Compressed data is invalid
+lzo
+Files - and TEST_DIR/192.lzo are identical
+Files TMP.uncompressed and TEST_DIR/192.lzo are identical
+Files TMP.uncompressed2 and TEST_DIR/192.lzo are identical
+Empty data
+Unaligned offset
+pwritev2: Invalid argument
+Large extent
+pwritev2: Invalid argument
+Compression doesn't shrink data
+Decompressed data is longer than expected
+Decompressed data is shorter than expected
+Compressed data is invalid
+zstd
+Files - and TEST_DIR/192.zstd are identical
+Files TMP.uncompressed and TEST_DIR/192.zstd are identical
+Files TMP.uncompressed2 and TEST_DIR/192.zstd are identical
+Empty data
+Unaligned offset
+pwritev2: Invalid argument
+Large extent
+pwritev2: Invalid argument
+Compression doesn't shrink data
+Decompressed data is longer than expected
+Decompressed data is shorter than expected
+Compressed data is invalid
