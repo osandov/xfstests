@@ -69,6 +69,10 @@ HAVE_FIEMAP = @have_fiemap@
 HAVE_FALLOCATE = @have_fallocate@
 HAVE_COPY_FILE_RANGE = @have_copy_file_range@
 
+HAVE_LZO = @have_lzo@
+HAVE_ZLIB = @have_zlib@
+HAVE_ZSTD = @have_zstd@
+
 GCCFLAGS = -funsigned-char -fno-strict-aliasing -Wall
 
 ifeq ($(PKG_PLATFORM),linux)

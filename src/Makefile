@@ -64,6 +64,15 @@ SUBDIRS += aio-dio-regress
 LLDLIBS += -laio
 endif
 
+ifeq ($(HAVE_LZO), true)
+ifeq ($(HAVE_ZLIB), true)
+ifeq ($(HAVE_ZSTD), true)
+LINUX_TARGETS += btrfs_compress_extent
+LLDLIBS += -llzo2 -lz -lzstd
+endif
+endif
+endif
+
 CFILES = $(TARGETS:=.c)
 LDIRT = $(TARGETS) fssum
 
