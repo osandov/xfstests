@@ -245,3 +245,4 @@
 240 auto quick prealloc log
 241 auto quick send
 242 auto quick compress rw
+243 auto quick compress rw

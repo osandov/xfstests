@@ -1,0 +1,160 @@
+#! /bin/bash
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2019 Facebook.  All Rights Reserved.
+#
+# FS QA Test 243
+#
+# Test RWF_ENCODED compressed writes on Btrfs.
+#
+seq=`basename $0`
+seqres=$RESULT_DIR/$seq
+echo "QA output created by $seq"
+
+here=`pwd`
+tmp=/tmp/$$
+status=1	# failure is the default!
+trap "_cleanup; exit \$status" 0 1 2 3 15
+
+_cleanup()
+{
+	cd /
+	rm -f $tmp.*
+	rm -f "$TEST_DIR/$seq."*
+}
+
+. ./common/rc
+. ./common/filter
+
+rm -f $seqres.full
+
+_supported_fs btrfs
+_require_test
+_require_test_program btrfs_compress_extent
+_require_test_program encoded_write
+
+# This is ~234k and compresses very well.
+seq 10000 50000 > "$tmp.uncompressed"
+# Same things backwards.
+tac "$tmp.uncompressed" > "$tmp.uncompressed2"
+
+write_compressed() {
+	local size
+	cat > "$tmp.extent"
+	size="$(stat -c '%s' "$tmp.extent")"
+	src/btrfs_compress_extent -t "$1" < "$tmp.extent" > "$tmp.compressed"
+	rm -f "$tmp.extent"
+	src/encoded_write -c "$1" "$2" "$3" "$size" < "$tmp.compressed"
+	rm -f "$tmp.compressed"
+}
+
+for type in zlib lzo zstd; do
+	echo $type
+
+	# Write out the last 60k and make sure it matches.
+	tail -n 10000 "$tmp.uncompressed" |
+		write_compressed "$type" "$TEST_DIR/$seq.$type" 0
+	if [ $? -eq 2 ]; then
+		_notrun "RWF_ENCODED is not supported"
+	fi
+	tail -n 10000 "$tmp.uncompressed" | diff -s - "$TEST_DIR/$seq.$type" |
+		_filter_test_dir
+
+	# Write out the whole thing this time, forwards and backwards. The file
+	# was cached by diff, so this also makes sure that we properly
+	# invalidate the page cache.
+	for file in "$tmp.uncompressed" "$tmp.uncompressed2"; do
+		head -c $((128 * 1024)) "$file" |
+			write_compressed "$type" "$TEST_DIR/$seq.$type" 0
+		tail -c +$((128 * 1024 + 1)) "$file" |
+			write_compressed "$type" "$TEST_DIR/$seq.$type" $((128 * 1024))
+		diff -s "$file" "$TEST_DIR/$seq.$type" |
+			sed "s#$tmp#TMP#g" | _filter_test_dir
+	done
+
+	# Inline file.
+	yes | head -n 2000 |
+		write_compressed "$type" "$TEST_DIR/$seq.$type.inline" 0
+	yes | head -n 2000 |
+		diff -s - "$TEST_DIR/$seq.$type.inline" | _filter_test_dir
+
+	# Bookend extent: data in file ends before unencoded data ends.
+	seq 50000 | head -c $((128 * 1024)) |
+		src/btrfs_compress_extent -t "$type" |
+		src/encoded_write -c "$type" "$TEST_DIR/$seq.$type.bookend1" \
+		0 292 -l $((128 * 1024))
+	seq 100 | diff -s - "$TEST_DIR/$seq.$type.bookend1" | _filter_test_dir
+
+	# Bookend extent: data in file starts after unencoded data starts.
+	seq 2 23500 |
+		src/btrfs_compress_extent -t "$type" |
+		src/encoded_write -c "$type" "$TEST_DIR/$seq.$type.bookend2" \
+		0 64356 -o $((64 * 1024)) -l $((128 * 1024))
+	seq 12775 23500 | diff -s - "$TEST_DIR/$seq.$type.bookend2" |
+		_filter_test_dir
+
+	# Bookend extent: data in file starts after unencoded data starts and
+	# ends before unencoded data ends.
+	seq 2 23500 |
+		src/btrfs_compress_extent -t "$type" |
+		src/encoded_write -c "$type" "$TEST_DIR/$seq.$type.bookend3" \
+		0 4830 -o $((64 * 1024)) -l $((128 * 1024))
+	seq 12775 13579 | diff -s - "$TEST_DIR/$seq.$type.bookend3" |
+		_filter_test_dir
+
+	# If the data decompresses longer than indicated by the metadata, then
+	# we should truncate it.
+	echo "Decompressed data is longer than expected"
+	head -c $((128 * 1024)) "$tmp.uncompressed" |
+		src/btrfs_compress_extent -t "$type" |
+		src/encoded_write -c "$type" "$TEST_DIR/$seq.$type.longer"  \
+		0 $((96 * 1024))
+	head -c $((96 * 1024)) "$tmp.uncompressed" |
+		diff -s - "$TEST_DIR/$seq.$type.longer" | _filter_test_dir
+
+	# If the data decompresses shorter than indicated by the metadata, then
+	# we should zero-extend it.
+	echo "Decompressed data is shorter than expected"
+	head -c $((64 * 1024)) "$tmp.uncompressed" |
+		src/btrfs_compress_extent -t "$type" |
+		src/encoded_write -c "$type" "$TEST_DIR/$seq.$type.shorter"  \
+		0 $((128 * 1024))
+	cat <(head -c $((64 * 1024)) "$tmp.uncompressed") \
+		<(dd if=/dev/zero bs=64k count=1 status=none) |
+		diff -s - "$TEST_DIR/$seq.$type.shorter" | _filter_test_dir
+
+	echo "Empty data"
+	write_compressed "$type" "$TEST_DIR/$seq.$type.empty" 0 < /dev/null
+	cat "$TEST_DIR/$seq.$type.empty"
+
+	echo "Invalid lengths"
+	src/encoded_write -c "$type" "$TEST_DIR/$seq.$type.invalidlen" \
+		0 $((256 * 1024)) -l $((128 * 1024)) < /dev/null
+	src/encoded_write -c "$type" "$TEST_DIR/$seq.$type.invalidlen" \
+		0 $((128 * 1024)) -o $((64 * 1024)) -l $((128 * 1024)) < /dev/null
+
+	echo "Unaligned offset"
+	tail -n 10000 "$tmp.uncompressed" |
+		write_compressed "$type" "$TEST_DIR/$seq.$type.2" 1
+	echo "Large extent"
+	dd if=/dev/zero bs=1M count=1 status=none |
+		write_compressed "$type" "$TEST_DIR/$seq.$type.2" 0
+	echo "Compression doesn't shrink data"
+	# This may be allowed in future kernels, so just make sure that it
+	# doesn't blow up.
+	echo foo |
+		write_compressed "$type" "$TEST_DIR/$seq.$type.2" 0 |&
+		grep -v "pwritev2: Invalid argument"
+
+	# We don't make any promises about what happens with invalid data.
+	# Again, make sure we at least don't blow up.
+
+	echo "Compressed data is invalid"
+	head -c $((32 * 1024)) "$tmp.uncompressed" |
+		src/encoded_write -c "$type" \
+		"$TEST_DIR/$seq.$type.5" 0 $((128 * 1024)) 2>> "$seqres.full"
+	cat "$TEST_DIR/$seq.$type.5" > /dev/null 2>> "$seqres.full"
+done
+
+# success, all done
+status=0
+exit

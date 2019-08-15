@@ -1,0 +1,67 @@
+QA output created by 243
+zlib
+Files - and TEST_DIR/243.zlib are identical
+Files TMP.uncompressed and TEST_DIR/243.zlib are identical
+Files TMP.uncompressed2 and TEST_DIR/243.zlib are identical
+Files - and TEST_DIR/243.zlib.inline are identical
+Files - and TEST_DIR/243.zlib.bookend1 are identical
+Files - and TEST_DIR/243.zlib.bookend2 are identical
+Files - and TEST_DIR/243.zlib.bookend3 are identical
+Decompressed data is longer than expected
+Files - and TEST_DIR/243.zlib.longer are identical
+Decompressed data is shorter than expected
+Files - and TEST_DIR/243.zlib.shorter are identical
+Empty data
+Invalid lengths
+pwritev2: Invalid argument
+pwritev2: Invalid argument
+Unaligned offset
+pwritev2: Invalid argument
+Large extent
+pwritev2: Invalid argument
+Compression doesn't shrink data
+Compressed data is invalid
+lzo
+Files - and TEST_DIR/243.lzo are identical
+Files TMP.uncompressed and TEST_DIR/243.lzo are identical
+Files TMP.uncompressed2 and TEST_DIR/243.lzo are identical
+Files - and TEST_DIR/243.lzo.inline are identical
+Files - and TEST_DIR/243.lzo.bookend1 are identical
+Files - and TEST_DIR/243.lzo.bookend2 are identical
+Files - and TEST_DIR/243.lzo.bookend3 are identical
+Decompressed data is longer than expected
+Files - and TEST_DIR/243.lzo.longer are identical
+Decompressed data is shorter than expected
+Files - and TEST_DIR/243.lzo.shorter are identical
+Empty data
+Invalid lengths
+pwritev2: Invalid argument
+pwritev2: Invalid argument
+Unaligned offset
+pwritev2: Invalid argument
+Large extent
+pwritev2: Invalid argument
+Compression doesn't shrink data
+Compressed data is invalid
+zstd
+Files - and TEST_DIR/243.zstd are identical
+Files TMP.uncompressed and TEST_DIR/243.zstd are identical
+Files TMP.uncompressed2 and TEST_DIR/243.zstd are identical
+Files - and TEST_DIR/243.zstd.inline are identical
+Files - and TEST_DIR/243.zstd.bookend1 are identical
+Files - and TEST_DIR/243.zstd.bookend2 are identical
+Files - and TEST_DIR/243.zstd.bookend3 are identical
+Decompressed data is longer than expected
+Files - and TEST_DIR/243.zstd.longer are identical
+Decompressed data is shorter than expected
+Files - and TEST_DIR/243.zstd.shorter are identical
+Empty data
+Invalid lengths
+pwritev2: Invalid argument
+pwritev2: Invalid argument
+Unaligned offset
+pwritev2: Invalid argument
+Large extent
+pwritev2: Invalid argument
+Compression doesn't shrink data
+Compressed data is invalid
