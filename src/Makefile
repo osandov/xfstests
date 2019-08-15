@@ -68,6 +68,7 @@ SUBDIRS += aio-dio-regress
 LLDLIBS += -laio
 endif
 
+
 ifeq ($(HAVE_URING), true)
 LLDLIBS += -luring
 endif
@@ -75,6 +76,14 @@ endif
 SUBDIRS += idmapped-mounts
 ifeq ($(HAVE_LIBCAP), true)
 LLDLIBS += -lcap
+endif
+ifeq ($(HAVE_LZO), true)
+ifeq ($(HAVE_ZLIB), true)
+ifeq ($(HAVE_ZSTD), true)
+LINUX_TARGETS += btrfs_compress_extent
+LLDLIBS += -llzo2 -lz -lzstd
+endif
+endif
 endif
 
 CFILES = $(TARGETS:=.c)
