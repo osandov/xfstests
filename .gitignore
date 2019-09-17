@@ -76,6 +76,7 @@ tags
 /src/dirperf
 /src/dirstress
 /src/e4compact
+/src/encoded_write
 /src/fault
 /src/feature
 /src/fiemap-tester
