@@ -1,0 +1,8 @@
+QA output created by 639
+Set O_ALLOW_ENCODED with fcntl
+Clear O_ALLOW_ENCODED with fcntl
+Open with O_ALLOW_ENCODED
+Change flags with O_ALLOW_ENCODED set (unprivileged)
+Clear O_ALLOW_ENCODED with fcntl (unprivileged)
+Set O_ALLOW_ENCODED with fcntl (unprivileged)
+Open with O_ALLOW_ENCODED (unprivileged)

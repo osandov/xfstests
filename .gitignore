@@ -148,6 +148,7 @@ tags
 /src/t_mmap_writev
 /src/t_mmap_writev_overlap
 /src/t_mtab
+/src/t_o_allow_encoded
 /src/t_ofd_locks
 /src/t_open_tmpfiles
 /src/t_readdir_1

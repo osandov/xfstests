@@ -1,0 +1,43 @@
+#! /bin/bash
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2019 Facebook.  All Rights Reserved.
+#
+# FS QA Test 639
+#
+# Test O_ALLOW_ENCODED.
+#
+seq=`basename $0`
+seqres=$RESULT_DIR/$seq
+echo "QA output created by $seq"
+
+here=`pwd`
+tmp=/tmp/$$
+status=1	# failure is the default!
+trap "_cleanup; exit \$status" 0 1 2 3 15
+
+_cleanup()
+{
+	cd /
+	rm -f $tmp.*
+	rm -rf "$TEST_DIR/$seq"
+}
+
+. ./common/rc
+. ./common/filter
+
+rm -f $seqres.full
+
+_supported_fs generic
+_require_test
+_require_test_program t_o_allow_encoded
+_require_user
+
+mkdir -p "$TEST_DIR/$seq"
+chown fsgqa "$TEST_DIR/$seq"
+./src/t_o_allow_encoded "$TEST_DIR/$seq/file" "$(id -u fsgqa)"
+if [ $? -eq 2 ]; then
+	_notrun "O_ALLOW_ENCODED is not supported"
+fi
+
+status=0
+exit
