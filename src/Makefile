@@ -80,7 +80,7 @@ endif
 ifeq ($(HAVE_LZO), true)
 ifeq ($(HAVE_ZLIB), true)
 ifeq ($(HAVE_ZSTD), true)
-LINUX_TARGETS += btrfs_compress_extent
+LINUX_TARGETS += btrfs_compress_extent btrfs_read_encoded
 LLDLIBS += -llzo2 -lz -lzstd
 endif
 endif
