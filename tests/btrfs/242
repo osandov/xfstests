@@ -1,0 +1,97 @@
+#! /bin/bash
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2019 Facebook.  All Rights Reserved.
+#
+# FS QA Test 242
+#
+# Test RWF_ENCODED compressed reads on Btrfs.
+#
+seq=`basename $0`
+seqres=$RESULT_DIR/$seq
+echo "QA output created by $seq"
+
+here=`pwd`
+tmp=/tmp/$$
+status=1	# failure is the default!
+trap "_cleanup; exit \$status" 0 1 2 3 15
+
+_cleanup()
+{
+	cd /
+	rm -f $tmp.*
+}
+
+. ./common/rc
+. ./common/filter
+
+rm -f $seqres.full
+
+_supported_fs btrfs
+_require_test
+_require_xfs_io_command reflink
+_require_test_program btrfs_read_encoded
+
+rm -rf "$TEST_DIR/$seq"
+mkdir "$TEST_DIR/$seq"
+touch "$TEST_DIR/$seq/empty"
+src/btrfs_read_encoded "$TEST_DIR/$seq/empty"
+if [ $? = 2 ]; then
+	_notrun "RWF_ENCODED is not supported"
+fi
+
+for type in none zlib lzo zstd; do
+	echo "$type"
+
+	dir="$TEST_DIR/$seq/$type"
+	mkdir "$dir"
+	btrfs property set "$dir" compression "$type"
+
+	echo "Inline file"
+	seq 100 > "$dir/inline"
+	if ! diff <(src/btrfs_read_encoded "$dir/inline") <(seq 100); then
+		src/btrfs_read_encoded "$dir/inline" | xxd
+	fi
+	diff <(src/btrfs_read_encoded -o 100 "$dir/inline") \
+		<(seq 100 | tail -c +101)
+
+	echo "Past EOF"
+	src/btrfs_read_encoded -o 300 "$dir/inline"
+
+	echo "Hole"
+	truncate -s 128M "$dir/hole"
+	diff <(src/btrfs_read_encoded "$dir/hole") \
+		<(head -c $((128 * 1024 * 1024)) /dev/zero)
+	diff <(src/btrfs_read_encoded -o 10000 "$dir/hole") \
+		<(head -c $((128 * 1024 * 1024 - 10000)) /dev/zero)
+
+	echo "Preallocated"
+	fallocate -l 128M "$dir/prealloc"
+	diff <(src/btrfs_read_encoded "$dir/prealloc") \
+		<(head -c $((128 * 1024 * 1024)) /dev/zero)
+	diff <(src/btrfs_read_encoded -o 10000 "$dir/prealloc") \
+		<(head -c $((128 * 1024 * 1024 - 10000)) /dev/zero)
+
+	echo "Regular"
+	seq 10000 50000 > "$dir/regular"
+	diff <(src/btrfs_read_encoded "$dir/regular") <(seq 10000 50000)
+	diff <(src/btrfs_read_encoded -o 30000 -l 30000 "$dir/regular") \
+		<(seq 15000 19999)
+
+	echo "Reflinked"
+	$XFS_IO_PROG -c "reflink $dir/regular $((64 * 1024)) 0 $((64 * 1024))" \
+		-f "$dir/reflinked" >> "$seqres.full"
+	diff <(src/btrfs_read_encoded "$dir/reflinked") \
+		<(seq 10000 50000 | tail -c +$((64 * 1024 + 1)) |
+		head -c $((64 * 1024)))
+	diff <(src/btrfs_read_encoded -o 1234 "$dir/reflinked") \
+		<(seq 10000 50000 | tail -c +$((64 * 1024 + 1235)) |
+		head -c $((64 * 1024 - 1234)))
+
+	echo "Truncated"
+	truncate -s 3006 "$dir/regular"
+	diff <(src/btrfs_read_encoded "$dir/regular") <(seq 10000 10500)
+	diff <(src/btrfs_read_encoded -o 6 "$dir/regular") <(seq 10001 10500)
+done
+
+status=0
+exit
