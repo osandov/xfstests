@@ -2172,7 +2172,7 @@ _require_xfs_io_command()
 		;;
 	"flink")
 		local testlink=$TEST_DIR/$$.link.xfs_io
-		testio=`$XFS_IO_PROG -F -f -c "flink $testlink" $testfile 2>&1`
+		testio=`$XFS_IO_PROG -F -f -c "flink $param $testlink" $testfile 2>&1`
 		rm -f $testlink > /dev/null 2>&1
 		;;
 	"-T")
