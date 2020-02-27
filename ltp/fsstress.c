@@ -10,6 +10,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "global.h"
+#include "encoded_io.h"
 
 #ifdef HAVE_BTRFSUTIL_H
 #include <btrfsutil.h>
@@ -99,6 +100,8 @@ typedef enum {
 	OP_DEDUPERANGE,
 	OP_DREAD,
 	OP_DWRITE,
+	OP_EREAD,
+	OP_EWRITE,
 	OP_FALLOCATE,
 	OP_FDATASYNC,
 	OP_FIEMAP,
@@ -228,6 +231,8 @@ void	creat_f(int, long);
 void	deduperange_f(int, long);
 void	dread_f(int, long);
 void	dwrite_f(int, long);
+void	eread_f(int, long);
+void	ewrite_f(int, long);
 void	fallocate_f(int, long);
 void	fdatasync_f(int, long);
 void	fiemap_f(int, long);
@@ -293,6 +298,8 @@ opdesc_t	ops[] = {
 	{ OP_DEDUPERANGE, "deduperange", deduperange_f, 4, 1},
 	{ OP_DREAD, "dread", dread_f, 4, 0 },
 	{ OP_DWRITE, "dwrite", dwrite_f, 4, 1 },
+	{ OP_EREAD, "eread", eread_f, 1, 0 },
+	{ OP_EWRITE, "ewrite", ewrite_f, 1, 1 },
 	{ OP_FALLOCATE, "fallocate", fallocate_f, 1, 1 },
 	{ OP_FDATASYNC, "fdatasync", fdatasync_f, 1, 1 },
 	{ OP_FIEMAP, "fiemap", fiemap_f, 1, 1 },
@@ -433,6 +440,7 @@ void	usage(void);
 void	write_freq(void);
 void	zero_freq(void);
 void	non_btrfs_freq(const char *);
+void	encoded_freq(const char *);
 
 void sg_handler(int signum)
 {
@@ -587,6 +595,7 @@ int main(int argc, char **argv)
         }
 
 	non_btrfs_freq(dirname);
+	encoded_freq(dirname);
 	(void)mkdir(dirname, 0777);
 	if (logname && logname[0] != '/') {
 		if (!getcwd(rpath, sizeof(rpath))){
@@ -1963,6 +1972,47 @@ non_btrfs_freq(const char *path)
 		}
 	}
 }
+
+void
+encoded_freq(const char *path)
+{
+	opdesc_t	*p;
+	size_t		path_len = strlen(path);
+	char		*template;
+	int		fd = -1;
+	int		flags;
+
+	template = malloc(path_len + 8);
+	if (!template)
+		goto disable;
+
+	memcpy(template, path, path_len);
+	template[path_len] = '/';
+	memset(&template[path_len + 1], 'X', 6);
+	template[path_len + 7] = '\0';
+
+	fd = mkstemp(template);
+	if (fd == -1)
+		goto disable;
+
+	flags = fcntl(fd, F_GETFL);
+	if (flags == -1)
+		goto disable;
+	fcntl(fd, F_SETFL, flags | O_ALLOW_ENCODED);
+	flags = fcntl(fd, F_GETFL);
+	if (flags != -1 && (flags & O_ALLOW_ENCODED))
+		goto out;
+
+disable:
+	for (p = ops; p < ops_end; p++) {
+		if (p->op == OP_EREAD || p->op == OP_EWRITE)
+			p->freq = 0;
+	}
+out:
+	close(fd);
+	free(template);
+}
+
 
 void inode_info(char *str, size_t sz, struct stat64 *s, int verbose)
 {
@@ -3514,6 +3564,153 @@ dwrite_f(int opno, long r)
 	close(fd);
 }
 
+void
+eread_f(int opno, long r)
+{
+	int		e;
+	pathname_t	f;
+	int		fd;
+	int64_t		lr;
+	off64_t		off;
+	char		st[1024];
+	struct stat64	stb;
+	int		v;
+	struct encoded_iov encoded_iov;
+	struct iovec iov[2] = {
+		{ .iov_base = &encoded_iov, .iov_len = sizeof(encoded_iov), }
+	};
+
+	init_pathname(&f);
+	if (!get_fname(FT_REGFILE, r, &f, NULL, NULL, &v)) {
+		if (v)
+			printf("%d/%d: eread - no filename\n", procid, opno);
+		free_pathname(&f);
+		return;
+	}
+	fd = open_path(&f, O_RDONLY | O_ALLOW_ENCODED);
+	e = fd < 0 ? errno : 0;
+	check_cwd();
+	if (fd < 0) {
+		if (v)
+			printf("%d/%d: eread - open %s failed %d\n",
+				procid, opno, f.path, e);
+		free_pathname(&f);
+		return;
+	}
+	if (fstat64(fd, &stb) < 0) {
+		if (v)
+			printf("%d/%d: eread - fstat64 %s failed %d\n",
+			       procid, opno, f.path, errno);
+		free_pathname(&f);
+		close(fd);
+		return;
+	}
+	inode_info(st, sizeof(st), &stb, v);
+	if (stb.st_size == 0) {
+		if (v)
+			printf("%d/%d: eread - %s%s zero size\n", procid, opno,
+			       f.path, st);
+		free_pathname(&f);
+		close(fd);
+		return;
+	}
+
+	lr = ((int64_t)random() << 32) + random();
+	off = (off64_t)(lr % stb.st_size);
+	iov[1].iov_len = (random() % FILELEN_MAX) + 1;
+	iov[1].iov_base = malloc(iov[1].iov_len);
+	e = preadv2(fd, iov, 2, off, RWF_ENCODED);
+	free(iov[1].iov_base);
+	if (v)
+		printf("%d/%d: eread %s%s [%lld,%d] %d\n",
+		       procid, opno, f.path, st, (long long)off,
+		       (int)iov[1].iov_len, e);
+	free_pathname(&f);
+	close(fd);
+}
+
+void ewrite_f(int opno, long r)
+{
+	static const size_t max_len = 128 * 1024;
+	int64_t		align;
+	int		e;
+	pathname_t	f;
+	int		fd;
+	int64_t		lr;
+	off64_t		off;
+	char		st[1024];
+	struct stat64	stb;
+	int		v;
+	struct encoded_iov encoded_iov = {};
+	struct iovec iov[2] = {
+		{ .iov_base = &encoded_iov, .iov_len = sizeof(encoded_iov), }
+	};
+
+	init_pathname(&f);
+	if (!get_fname(FT_REGFILE, r, &f, NULL, NULL, &v)) {
+		if (v)
+			printf("%d/%d: ewrite - no filename\n", procid, opno);
+		free_pathname(&f);
+		return;
+	}
+	fd = open_path(&f, O_WRONLY | O_ALLOW_ENCODED);
+	e = fd < 0 ? errno : 0;
+	check_cwd();
+	if (fd < 0) {
+		if (v)
+			printf("%d/%d: ewrite - open %s failed %d\n",
+				procid, opno, f.path, e);
+		free_pathname(&f);
+		return;
+	}
+	if (fstat64(fd, &stb) < 0) {
+		if (v)
+			printf("%d/%d: ewrite - fstat64 %s failed %d\n",
+			       procid, opno, f.path, errno);
+		free_pathname(&f);
+		close(fd);
+		return;
+	}
+	inode_info(st, sizeof(st), &stb, v);
+	if (stb.st_size == 0) {
+		if (v)
+			printf("%d/%d: ewrite - %s%s zero size\n", procid, opno,
+			       f.path, st);
+		free_pathname(&f);
+		close(fd);
+		return;
+	}
+
+	align = stb.st_blksize;
+	lr = ((int64_t)random() << 32) + random();
+	off = (off64_t)(lr % MIN(stb.st_size + (1024 * 1024), MAXFSIZE));
+	off -= (off % align);
+
+	encoded_iov.unencoded_len = (random() % (max_len / align)) + 1;
+	encoded_iov.unencoded_offset = random() % encoded_iov.unencoded_len;
+	encoded_iov.len =
+		random() %
+		(encoded_iov.unencoded_len - encoded_iov.unencoded_offset + 1);
+
+	encoded_iov.unencoded_len *= align;
+	encoded_iov.unencoded_offset *= align;
+	encoded_iov.len *= align;
+
+	iov[1].iov_len = (random() % max_len) + 1;
+	iov[1].iov_base = malloc(iov[1].iov_len);
+	memset(iov[1].iov_base, nameseq & 0xff, iov[1].iov_len);
+
+	encoded_iov.compression = (random() % ENCODED_IOV_COMPRESSION_TYPES) + 1;
+
+	e = pwritev2(fd, iov, 2, off, RWF_ENCODED);
+	free(iov[1].iov_base);
+	if (v)
+		printf("%d/%d: ewrite %s%s [%lld,%d] %d\n",
+		       procid, opno, f.path, st, (long long)off,
+		       (int)iov[1].iov_len, e);
+	free_pathname(&f);
+	close(fd);
+}
 
 #ifdef HAVE_LINUX_FALLOC_H
 struct print_flags falloc_flags [] = {
